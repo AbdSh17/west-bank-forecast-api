@@ -1,0 +1,21 @@
+# Virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+
+# SQLite database and its side files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Secrets and local settings
+.env
+
+# Editor swap files and notes tooling
+*.swp
+.obsidian/
+
+# Personal notes, explanations and the task PDF
+_notes/
