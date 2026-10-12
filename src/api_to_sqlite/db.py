@@ -3,7 +3,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("data/weather.db")
+from api_to_sqlite.config import DB_PATH
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cities (
@@ -35,3 +35,21 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
 def create_schema(conn: sqlite3.Connection) -> None:
     """Create the cities and daily_weather tables if they do not exist."""
     conn.executescript(SCHEMA)
+
+
+def upsert_city(
+    conn: sqlite3.Connection, name: str, latitude: float, longitude: float
+) -> int:
+    """Insert or update one city and return its id."""
+    conn.execute(
+        """
+        INSERT INTO cities (name, latitude, longitude)
+        VALUES (?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+            latitude = excluded.latitude,
+            longitude = excluded.longitude
+        """,
+        (name, latitude, longitude),
+    )
+    row = conn.execute("SELECT id FROM cities WHERE name = ?", (name,)).fetchone()
+    return row[0]
