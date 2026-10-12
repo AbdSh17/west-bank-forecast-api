@@ -53,3 +53,22 @@ def upsert_city(
     )
     row = conn.execute("SELECT id FROM cities WHERE name = ?", (name,)).fetchone()
     return row[0]
+
+
+def upsert_daily_weather(
+    conn: sqlite3.Connection, city_id: int, records: list[dict]
+) -> None:
+    """Insert or update the daily forecast rows for one city."""
+    conn.executemany(
+        """
+        INSERT INTO daily_weather
+            (city_id, date, temp_max, temp_min, precipitation)
+        VALUES
+            (:city_id, :date, :temp_max, :temp_min, :precipitation)
+        ON CONFLICT(city_id, date) DO UPDATE SET
+            temp_max = excluded.temp_max,
+            temp_min = excluded.temp_min,
+            precipitation = excluded.precipitation
+        """,
+        [{**record, "city_id": city_id} for record in records],
+    )
