@@ -22,3 +22,7 @@ _notes/
 
 # Packaging artefacts from pip install -e .
 *.egg-info/
+
+# Test cache and generated exports
+.pytest_cache/
+reports/
