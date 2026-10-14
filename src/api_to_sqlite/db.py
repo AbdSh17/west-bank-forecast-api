@@ -80,8 +80,16 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def city_exists(conn: sqlite3.Connection, city: str) -> bool:
+    """Return True if a city with this name (any letter case) is stored."""
+    row = conn.execute(
+        "SELECT 1 FROM cities WHERE name = ? COLLATE NOCASE", (city,)
+    ).fetchone()
+    return row is not None
+
+
 def average_max_temp_per_city(
-    conn: sqlite3.Connection, since: str | None = None
+    conn: sqlite3.Connection, since: str | None = None, city: str | None = None
 ) -> list[tuple[str, float]]:
     """Return each city's average max temperature from `since` on, hottest first."""
     return conn.execute(
@@ -89,16 +97,17 @@ def average_max_temp_per_city(
         SELECT c.name, ROUND(AVG(w.temp_max), 1) AS avg_max
         FROM cities AS c
         JOIN daily_weather AS w ON w.city_id = c.id
-        WHERE w.date >= ?
+        WHERE w.date >= :since
+          AND ( :city IS NULL OR c.name = :city COLLATE NOCASE )
         GROUP BY c.id
         ORDER BY avg_max DESC
         """,
-        (since or _today(),),
+        {"since": since or _today(), "city": city},
     ).fetchall()
 
 
 def hottest_day_per_city(
-    conn: sqlite3.Connection, since: str | None = None
+    conn: sqlite3.Connection, since: str | None = None, city: str | None = None
 ) -> list[tuple[str, str, float]]:
     """Return each city's hottest day from `since` on; ties show all days."""
     return conn.execute(
@@ -107,6 +116,7 @@ def hottest_day_per_city(
         FROM cities AS c
         JOIN daily_weather AS w ON w.city_id = c.id
         WHERE w.date >= :since
+          AND ( :city IS NULL OR c.name = :city COLLATE NOCASE )
           AND w.temp_max = (
               SELECT MAX(temp_max)
               FROM daily_weather
@@ -114,12 +124,12 @@ def hottest_day_per_city(
           )
         ORDER BY w.temp_max DESC, c.name, w.date
         """,
-        {"since": since or _today()},
+        {"since": since or _today(), "city": city},
     ).fetchall()
 
 
 def rainy_days_per_city(
-    conn: sqlite3.Connection, since: str | None = None
+    conn: sqlite3.Connection, since: str | None = None, city: str | None = None
 ) -> list[tuple[str, int]]:
     """Return each city's days with precipitation above 0 from `since` on."""
     return conn.execute(
@@ -127,9 +137,10 @@ def rainy_days_per_city(
         SELECT c.name, COUNT(w.date) AS rainy_days
         FROM cities AS c
         LEFT JOIN daily_weather AS w
-            ON w.city_id = c.id AND w.precipitation > 0 AND w.date >= ?
+            ON w.city_id = c.id AND w.precipitation > 0 AND w.date >= :since
+        WHERE ( :city IS NULL OR c.name = :city COLLATE NOCASE )
         GROUP BY c.id
         ORDER BY rainy_days DESC, c.name
         """,
-        (since or _today(),),
+        {"since": since or _today(), "city": city},
     ).fetchall()
