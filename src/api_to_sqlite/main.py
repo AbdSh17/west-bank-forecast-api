@@ -7,6 +7,9 @@ from api_to_sqlite import db
 from api_to_sqlite.api import FetchError, fetch_forecast, parse_daily
 from api_to_sqlite.config import CITIES
 
+import csv
+from pathlib import Path
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with the fetch and report commands."""
@@ -18,6 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("fetch", help="fetch forecasts and store them")
     report = subparsers.add_parser("report", help="print reports from the stored data")
     report.add_argument("--city", help="limit the reports to one city")
+    report.add_argument(
+        "--csv-dir", help="also write each report as a CSV file into this folder"
+    )
     return parser
 
 
@@ -35,6 +41,15 @@ def print_table(title: str, headers: list[str], rows: list[list[str]]) -> None:
     for row in rows:
         print("  ".join(cell.ljust(w) for cell, w in zip(row, widths)))
     print()
+
+
+def write_csv(path: Path, headers: list[str], rows: list[tuple]) -> None:
+    """Write a report to a CSV file; a missing value becomes an empty cell."""
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow(["" if cell is None else cell for cell in row])
 
 
 def cmd_fetch() -> int:
@@ -67,8 +82,8 @@ def cmd_fetch() -> int:
     return 0
 
 
-def cmd_report(city: str | None = None) -> int:
-    """Print the three reports, or return 1 when no data or city is found."""
+def cmd_report(city: str | None = None, csv_dir: str | None = None) -> int:
+    """Print the three reports, optionally export them as CSV, and return the exit code."""
     conn = db.connect()
     try:
         db.create_schema(conn)
@@ -84,6 +99,14 @@ def cmd_report(city: str | None = None) -> int:
         rainy = db.rainy_days_per_city(conn, city=city)
     finally:
         conn.close()
+
+    if csv_dir is not None:
+        out = Path(csv_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        write_csv(out / "average_max.csv", ["City", "Avg max (C)"], averages)
+        write_csv(out / "hottest_day.csv", ["City", "Date", "Max temp (C)"], hottest)
+        write_csv(out / "rainy_days.csv", ["City", "Rainy days"], rainy)
+        print(f"CSV files written to {out}")
 
     print_table(
         "1. Average maximum temperature per city",
@@ -108,4 +131,4 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "fetch":
         return cmd_fetch()
-    return cmd_report(args.city)
+    return cmd_report(args.city, args.csv_dir)
