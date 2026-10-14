@@ -16,7 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("fetch", help="fetch forecasts and store them")
-    subparsers.add_parser("report", help="print reports from the stored data")
+    report = subparsers.add_parser("report", help="print reports from the stored data")
+    report.add_argument("--city", help="limit the reports to one city")
     return parser
 
 
@@ -66,8 +67,8 @@ def cmd_fetch() -> int:
     return 0
 
 
-def cmd_report() -> int:
-    """Print the three reports, or return 1 when no data is stored."""
+def cmd_report(city: str | None = None) -> int:
+    """Print the three reports, or return 1 when no data or city is found."""
     conn = db.connect()
     try:
         db.create_schema(conn)
@@ -75,9 +76,12 @@ def cmd_report() -> int:
         if count == 0:
             print("No data found. Run fetch first.", file=sys.stderr)
             return 1
-        averages = db.average_max_temp_per_city(conn)
-        hottest = db.hottest_day_per_city(conn)
-        rainy = db.rainy_days_per_city(conn)
+        if city is not None and not db.city_exists(conn, city):
+            print(f"Unknown city: {city}", file=sys.stderr)
+            return 1
+        averages = db.average_max_temp_per_city(conn, city=city)
+        hottest = db.hottest_day_per_city(conn, city=city)
+        rainy = db.rainy_days_per_city(conn, city=city)
     finally:
         conn.close()
 
@@ -104,4 +108,4 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "fetch":
         return cmd_fetch()
-    return cmd_report()
+    return cmd_report(args.city)
