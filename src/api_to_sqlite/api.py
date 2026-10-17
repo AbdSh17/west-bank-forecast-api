@@ -28,13 +28,17 @@ def fetch_forecast(latitude: float, longitude: float) -> dict:
         response.raise_for_status()
         data = response.json()
     except requests.Timeout as error:
-        raise FetchError(f"Request timed out after {TIMEOUT_SECONDS} seconds") from error
+        raise FetchError(
+            f"Request timed out after {TIMEOUT_SECONDS} seconds"
+        ) from error
     except requests.ConnectionError as error:
         raise FetchError("Could not connect to the Open-Meteo API") from error
     except requests.HTTPError as error:
         raise FetchError(_http_error_message(error.response)) from error
     except ValueError as error:
-        raise FetchError("The API returned a response that is not valid JSON") from error
+        raise FetchError(
+            "The API returned a response that is not valid JSON"
+        ) from error
     except requests.RequestException as error:
         raise FetchError(f"Request failed: {error}") from error
 
