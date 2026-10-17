@@ -116,7 +116,7 @@ def cmd_report(
     print_table(
         "2. Hottest day per city",
         ["City", "Date", "Max temp"],
-        [[name, date, format_temp(temp)] for name, date, temp in hottest],
+        [[name, str(date), format_temp(temp)] for name, date, temp in hottest],
     )
     print_table(
         "3. Days with rain per city",
