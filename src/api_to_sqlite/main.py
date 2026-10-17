@@ -1,14 +1,14 @@
 """Command-line entry point: the fetch and report commands."""
 
 import argparse
+import csv
 import sys
+from pathlib import Path
 
-from api_to_sqlite import db
 from api_to_sqlite.api import FetchError, fetch_forecast, parse_daily
 from api_to_sqlite.config import CITIES
-
-import csv
-from pathlib import Path
+from api_to_sqlite.connection_manager import ConnectionManager
+from api_to_sqlite.weather_dao import WeatherDAO
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,25 +52,24 @@ def write_csv(path: Path, headers: list[str], rows: list[tuple]) -> None:
             writer.writerow(["" if cell is None else cell for cell in row])
 
 
-def cmd_fetch() -> int:
+def cmd_fetch(manager: ConnectionManager, dao: WeatherDAO) -> int:
     """Fetch every city, store the successes and return 1 if any city failed."""
+    with manager.connection() as conn:
+        dao.create_schema(conn)
+
     failed: list[str] = []
-    conn = db.connect()
-    try:
-        db.create_schema(conn)
-        for name, latitude, longitude in CITIES:
-            try:
-                records = parse_daily(fetch_forecast(latitude, longitude))
-            except FetchError as error:
-                print(f"{name}: failed - {error}", file=sys.stderr)
-                failed.append(name)
-                continue
-            city_id = db.upsert_city(conn, name, latitude, longitude)
-            db.upsert_daily_weather(conn, city_id, records)
+    for name, latitude, longitude in CITIES:
+        try:
+            records = parse_daily(fetch_forecast(latitude, longitude))
+        except FetchError as error:
+            print(f"{name}: failed - {error}", file=sys.stderr)
+            failed.append(name)
+            continue
+        with manager.connection() as conn:
+            city_id = dao.upsert_city(conn, name, latitude, longitude)
+            dao.upsert_daily_weather(conn, city_id, records)
             conn.commit()
-            print(f"{name}: stored {len(records)} days")
-    finally:
-        conn.close()
+        print(f"{name}: stored {len(records)} days")
 
     if failed:
         print(
@@ -82,23 +81,24 @@ def cmd_fetch() -> int:
     return 0
 
 
-def cmd_report(city: str | None = None, csv_dir: str | None = None) -> int:
+def cmd_report(
+    manager: ConnectionManager,
+    dao: WeatherDAO,
+    city: str | None = None,
+    csv_dir: str | None = None,
+) -> int:
     """Print the three reports, optionally export them as CSV, and return the exit code."""
-    conn = db.connect()
-    try:
-        db.create_schema(conn)
-        count = conn.execute("SELECT COUNT(*) FROM daily_weather").fetchone()[0]
-        if count == 0:
+    with manager.connection() as conn:
+        dao.create_schema(conn)
+        if not dao.has_data(conn):
             print("No data found. Run fetch first.", file=sys.stderr)
             return 1
-        if city is not None and not db.city_exists(conn, city):
+        if city is not None and not dao.city_exists(conn, city):
             print(f"Unknown city: {city}", file=sys.stderr)
             return 1
-        averages = db.average_max_temp_per_city(conn, city=city)
-        hottest = db.hottest_day_per_city(conn, city=city)
-        rainy = db.rainy_days_per_city(conn, city=city)
-    finally:
-        conn.close()
+        averages = dao.average_max_temp_per_city(conn, city=city)
+        hottest = dao.hottest_day_per_city(conn, city=city)
+        rainy = dao.rainy_days_per_city(conn, city=city)
 
     if csv_dir is not None:
         out = Path(csv_dir)
@@ -129,6 +129,8 @@ def cmd_report(city: str | None = None, csv_dir: str | None = None) -> int:
 def main(argv: list[str] | None = None) -> int:
     """Parse the arguments, run the chosen command and return the exit code."""
     args = build_parser().parse_args(argv)
+    manager = ConnectionManager()
+    dao = WeatherDAO()
     if args.command == "fetch":
-        return cmd_fetch()
-    return cmd_report(args.city, args.csv_dir)
+        return cmd_fetch(manager, dao)
+    return cmd_report(manager, dao, args.city, args.csv_dir)
