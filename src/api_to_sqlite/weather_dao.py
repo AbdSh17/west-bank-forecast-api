@@ -1,8 +1,11 @@
 """SQL operations for the weather data. All SQL lives in the sql/ folder."""
 
-import sqlite3
+"""SQL operations for the weather data. All SQL lives in the sql/ folder."""
+
 from datetime import date
 from importlib.resources import files
+
+from mysql.connector.abstracts import MySQLConnectionAbstract
 
 from api_to_sqlite.config import DB_DIALECT
 
@@ -18,7 +21,9 @@ def _load_sql(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _query(conn: sqlite3.Connection, name: str, params: dict | None = None) -> list:
+def _query(
+    conn: MySQLConnectionAbstract, name: str, params: dict | None = None
+) -> list:
     """Run a SQL file and return all rows."""
     cursor = conn.cursor()
     try:
@@ -28,7 +33,9 @@ def _query(conn: sqlite3.Connection, name: str, params: dict | None = None) -> l
         cursor.close()
 
 
-def _execute(conn: sqlite3.Connection, name: str, params: dict | None = None) -> None:
+def _execute(
+    conn: MySQLConnectionAbstract, name: str, params: dict | None = None
+) -> None:
     """Run a SQL file that returns no rows."""
     cursor = conn.cursor()
     try:
@@ -37,7 +44,7 @@ def _execute(conn: sqlite3.Connection, name: str, params: dict | None = None) ->
         cursor.close()
 
 
-def _execute_many(conn: sqlite3.Connection, name: str, rows: list[dict]) -> None:
+def _execute_many(conn: MySQLConnectionAbstract, name: str, rows: list[dict]) -> None:
     """Run a SQL file once for every parameter dictionary in rows."""
     cursor = conn.cursor()
     try:
@@ -49,17 +56,21 @@ def _execute_many(conn: sqlite3.Connection, name: str, rows: list[dict]) -> None
 class WeatherDAO:
     """Runs the weather SQL on a connection that the caller supplies."""
 
-    def create_schema(self, conn: sqlite3.Connection) -> None:
+    def create_schema(self, conn: MySQLConnectionAbstract) -> None:
         """Create the cities and daily_weather tables if they do not exist."""
         _execute(conn, "create_cities.sql")
         _execute(conn, "create_daily_weather.sql")
 
-    def has_data(self, conn: sqlite3.Connection) -> bool:
+    def has_data(self, conn: MySQLConnectionAbstract) -> bool:
         """Return True if at least one daily forecast row is stored."""
         return _query(conn, "has_data.sql")[0][0] > 0
 
     def upsert_city(
-        self, conn: sqlite3.Connection, name: str, latitude: float, longitude: float
+        self,
+        conn: MySQLConnectionAbstract,
+        name: str,
+        latitude: float,
+        longitude: float,
     ) -> int:
         """Insert or update one city and return its id."""
         _execute(
@@ -70,7 +81,7 @@ class WeatherDAO:
         return _query(conn, "get_city_id.sql", {"name": name})[0][0]
 
     def upsert_daily_weather(
-        self, conn: sqlite3.Connection, city_id: int, records: list[dict]
+        self, conn: MySQLConnectionAbstract, city_id: int, records: list[dict]
     ) -> None:
         """Insert or update the daily forecast rows for one city."""
         _execute_many(
@@ -81,13 +92,13 @@ class WeatherDAO:
             ],  # records: record of N day forecast
         )
 
-    def city_exists(self, conn: sqlite3.Connection, city: str) -> bool:
+    def city_exists(self, conn: MySQLConnectionAbstract, city: str) -> bool:
         """Return True if a city with this name (any letter case) is stored."""
         return len(_query(conn, "city_exists.sql", {"city": city})) > 0
 
     def average_max_temp_per_city(
         self,
-        conn: sqlite3.Connection,
+        conn: MySQLConnectionAbstract,
         since: str | None = None,
         city: str | None = None,
     ) -> list[tuple[str, float]]:
@@ -98,7 +109,7 @@ class WeatherDAO:
 
     def hottest_day_per_city(
         self,
-        conn: sqlite3.Connection,
+        conn: MySQLConnectionAbstract,
         since: str | None = None,
         city: str | None = None,
     ) -> list[tuple[str, str, float]]:
@@ -109,7 +120,7 @@ class WeatherDAO:
 
     def rainy_days_per_city(
         self,
-        conn: sqlite3.Connection,
+        conn: MySQLConnectionAbstract,
         since: str | None = None,
         city: str | None = None,
     ) -> list[tuple[str, int]]:
