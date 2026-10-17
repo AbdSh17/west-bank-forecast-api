@@ -7,7 +7,11 @@ from pathlib import Path
 
 from api_to_sqlite.api import FetchError, fetch_forecast, parse_daily
 from api_to_sqlite.config import CITIES
-from api_to_sqlite.connection_manager import ConnectionManager
+from api_to_sqlite.connection_manager import (
+    ConfigError,
+    ConnectionManager,
+    DatabaseConnectionError,
+)
 from api_to_sqlite.weather_dao import WeatherDAO
 
 
@@ -116,7 +120,7 @@ def cmd_report(
     print_table(
         "2. Hottest day per city",
         ["City", "Date", "Max temp"],
-        [[name, date, format_temp(temp)] for name, date, temp in hottest],
+        [[name, str(date), format_temp(temp)] for name, date, temp in hottest],
     )
     print_table(
         "3. Days with rain per city",
@@ -129,8 +133,12 @@ def cmd_report(
 def main(argv: list[str] | None = None) -> int:
     """Parse the arguments, run the chosen command and return the exit code."""
     args = build_parser().parse_args(argv)
-    manager = ConnectionManager()
-    dao = WeatherDAO()
-    if args.command == "fetch":
-        return cmd_fetch(manager, dao)
-    return cmd_report(manager, dao, args.city, args.csv_dir)
+    try:
+        manager = ConnectionManager()
+        dao = WeatherDAO()
+        if args.command == "fetch":
+            return cmd_fetch(manager, dao)
+        return cmd_report(manager, dao, args.city, args.csv_dir)
+    except (ConfigError, DatabaseConnectionError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1

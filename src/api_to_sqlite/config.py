@@ -3,6 +3,10 @@
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DB_PATH = Path("data/weather.db")
 
 CITIES = [
@@ -14,6 +18,11 @@ CITIES = [
 ]
 
 DB_DIALECT = os.environ.get("DB_DIALECT", "sqlite")
+MYSQL_HOST = os.environ.get("MYSQL_HOST", "localhost")
+MYSQL_PORT = os.environ.get("MYSQL_PORT", "3306")
+MYSQL_USER = os.environ.get("MYSQL_USER")
+MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD")
+MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "weather")
 API_URL = "https://api.open-meteo.com/v1/forecast"
 DAILY_VARIABLES = "temperature_2m_max,temperature_2m_min,precipitation_sum"
 FORECAST_DAYS = 7
