@@ -1,4 +1,5 @@
 [build-system]
+
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
@@ -10,3 +11,6 @@ requires-python = ">=3.10"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+api_to_sqlite = ["sql/*/*.sql"]
