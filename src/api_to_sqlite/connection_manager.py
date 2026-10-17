@@ -1,5 +1,6 @@
 """Connection handling. No weather SQL lives here."""
 
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -8,9 +9,19 @@ from mysql.connector.abstracts import MySQLConnectionAbstract
 
 from api_to_sqlite import config
 
+CONNECT_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 1
+CONNECT_TIMEOUT_SECONDS = 5
+# MySQL client error numbers for "server not reachable". Only 2003 was seen here.
+TRANSIENT_ERRNOS = {2002, 2003, 2013}
+
 
 class ConfigError(Exception):
     """Raised when the MySQL settings are missing or invalid."""
+
+
+class DatabaseConnectionError(Exception):
+    """Raised when the MySQL server cannot be reached or refuses the login."""
 
 
 class ConnectionManager:
@@ -42,16 +53,36 @@ class ConnectionManager:
         self.password = config.MYSQL_PASSWORD
         self.database = config.MYSQL_DATABASE
 
+    def _connect(self) -> MySQLConnectionAbstract:
+        """Open a connection, retrying with backoff while the server is unreachable."""
+        attempt = 1
+        while True:
+            try:
+                return mysql.connector.connect(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    connection_timeout=CONNECT_TIMEOUT_SECONDS,
+                )
+            except mysql.connector.Error as error:
+                if error.errno not in TRANSIENT_ERRNOS:
+                    raise DatabaseConnectionError(
+                        f"MySQL refused the connection: {error}"
+                    ) from error
+                if attempt == CONNECT_ATTEMPTS:
+                    raise DatabaseConnectionError(
+                        f"Could not reach MySQL after {CONNECT_ATTEMPTS} attempts: "
+                        f"{error}"
+                    ) from error
+                time.sleep(RETRY_DELAY_SECONDS * 2 ** (attempt - 1))
+                attempt += 1
+
     @contextmanager
     def connection(self) -> Iterator[MySQLConnectionAbstract]:
         """Yield an open connection and always close it afterwards."""
-        conn = mysql.connector.connect(
-            host=self.host,
-            port=self.port,
-            user=self.user,
-            password=self.password,
-            database=self.database,
-        )
+        conn = self._connect()
         try:
             yield conn
         except Exception:
