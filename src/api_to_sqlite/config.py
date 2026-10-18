@@ -23,6 +23,9 @@ MYSQL_PORT = os.environ.get("MYSQL_PORT", "3306")
 MYSQL_USER = os.environ.get("MYSQL_USER")
 MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD")
 MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "weather")
+
+MYSQL_POOL_SIZE = os.environ.get("MYSQL_POOL_SIZE", "5")
+
 API_URL = "https://api.open-meteo.com/v1/forecast"
 DAILY_VARIABLES = "temperature_2m_max,temperature_2m_min,precipitation_sum"
 FORECAST_DAYS = 7
