@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_PATH = Path("data/weather.db")
 
 CITIES = [
     ("Ramallah", 31.90, 35.20),
@@ -17,7 +16,6 @@ CITIES = [
     ("Jericho", 31.86, 35.46),
 ]
 
-DB_DIALECT = os.environ.get("DB_DIALECT", "sqlite")
 MYSQL_HOST = os.environ.get("MYSQL_HOST", "localhost")
 MYSQL_PORT = os.environ.get("MYSQL_PORT", "3306")
 MYSQL_USER = os.environ.get("MYSQL_USER")

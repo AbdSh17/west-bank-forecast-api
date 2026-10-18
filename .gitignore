@@ -4,12 +4,6 @@
 # Python bytecode
 __pycache__/
 
-# SQLite database and its side files
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-
 # Secrets and local settings
 .env
 
