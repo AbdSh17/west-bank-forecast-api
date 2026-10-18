@@ -5,10 +5,17 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import mysql.connector
-from mysql.connector.abstracts import MySQLConnectionAbstract
+from mysql.connector.pooling import MySQLConnectionPool, PooledMySQLConnection
+
+# MySQLConnectionPool: The pool manager that holds the connections
+# PooledMySQLConnection: One borrowed connection
 
 from api_to_sqlite import config
 
+Connection = PooledMySQLConnection
+
+MAX_POOL_SIZE = 32
+POOL_NAME = "weather_pool"
 CONNECT_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 1
 CONNECT_TIMEOUT_SECONDS = 5
@@ -25,10 +32,23 @@ class DatabaseConnectionError(Exception):
 
 
 class ConnectionManager:
-    """Opens and closes connections to the MySQL database."""
+    """Hands out connections from a fixed-size MySQL connection pool."""
 
     def __init__(self) -> None:
-        """Read the MySQL settings from config and check them."""
+        """Read the MySQL settings from config and check them.
+
+        Attributes:
+
+            port: MySQL port, converted to int.
+            pool_size: Connection pool size, between 1 and MAX_POOL_SIZE.
+            host: MySQL host.
+            user: MySQL user.
+            password: MySQL password.
+            database: Database name.
+            _pool: MySQLConnectionPool or None. Not created yet.
+
+        """
+
         missing = [
             name
             for name, value in (
@@ -48,17 +68,33 @@ class ConnectionManager:
             raise ConfigError(
                 f"MYSQL_PORT must be a number, got {config.MYSQL_PORT!r}"
             ) from error
+
+        try:
+            self.pool_size = int(config.MYSQL_POOL_SIZE)
+        except ValueError as error:
+            raise ConfigError(
+                f"MYSQL_POOL_SIZE must be a number, got {config.MYSQL_POOL_SIZE!r}"
+            ) from error
+        if not 1 <= self.pool_size <= MAX_POOL_SIZE:
+            raise ConfigError(
+                f"MYSQL_POOL_SIZE must be between 1 and {MAX_POOL_SIZE}, "
+                f"got {self.pool_size}"
+            )
+
         self.host = config.MYSQL_HOST
         self.user = config.MYSQL_USER
         self.password = config.MYSQL_PASSWORD
         self.database = config.MYSQL_DATABASE
+        self._pool: MySQLConnectionPool | None = None
 
-    def _connect(self) -> MySQLConnectionAbstract:
-        """Open a connection, retrying with backoff while the server is unreachable."""
+    def _create_pool(self) -> MySQLConnectionPool:
+        """Create the pool, retrying with backoff while the server is unreachable."""
         attempt = 1
         while True:
             try:
-                return mysql.connector.connect(
+                return MySQLConnectionPool(
+                    pool_name=POOL_NAME,
+                    pool_size=self.pool_size,
                     host=self.host,
                     port=self.port,
                     user=self.user,
@@ -80,13 +116,20 @@ class ConnectionManager:
                 attempt += 1
 
     @contextmanager
-    def connection(self) -> Iterator[MySQLConnectionAbstract]:
-        """Yield an open connection and always close it afterwards."""
-        conn = self._connect()
+    def connection(self) -> Iterator[Connection]:
+        """Borrow a connection from the pool and always give it back afterwards."""
+        if self._pool is None:
+            self._pool = self._create_pool()
+        try:
+            conn = self._pool.get_connection()
+        except mysql.connector.PoolError as error:
+            raise DatabaseConnectionError(
+                f"No free connection in the pool: {error}"
+            ) from error
         try:
             yield conn
-        except Exception:
-            conn.rollback()
-            raise
         finally:
-            conn.close()
+            try:
+                conn.rollback()
+            finally:
+                conn.close()
