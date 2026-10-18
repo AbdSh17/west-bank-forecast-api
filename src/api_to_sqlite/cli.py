@@ -5,14 +5,18 @@ import csv
 import sys
 from pathlib import Path
 
-from api_to_sqlite.api import FetchError, fetch_forecast, parse_daily
+from api_to_sqlite.cities.dao import CityDAO
 from api_to_sqlite.config import CITIES
-from api_to_sqlite.connection_manager import (
+from api_to_sqlite.database import (
     ConfigError,
     ConnectionManager,
     DatabaseConnectionError,
 )
-from api_to_sqlite.weather_dao import WeatherDAO
+from api_to_sqlite.forecasts.dao import ForecastDAO
+from api_to_sqlite.openmeteo.client import fetch_forecast
+from api_to_sqlite.openmeteo.exceptions import FetchError
+from api_to_sqlite.openmeteo.parse import parse_daily
+from api_to_sqlite.reports.dao import ReportDAO
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,10 +60,15 @@ def write_csv(path: Path, headers: list[str], rows: list[tuple]) -> None:
             writer.writerow(["" if cell is None else cell for cell in row])
 
 
-def cmd_fetch(manager: ConnectionManager, dao: WeatherDAO) -> int:
+def cmd_fetch(
+    manager: ConnectionManager,
+    cities: CityDAO,
+    forecasts: ForecastDAO,
+) -> int:
     """Fetch every city, store the successes and return 1 if any city failed."""
     with manager.connection() as conn:
-        dao.create_schema(conn)
+        cities.create_schema(conn)
+        forecasts.create_schema(conn)
 
     failed: list[str] = []
     for name, latitude, longitude in CITIES:
@@ -70,8 +79,8 @@ def cmd_fetch(manager: ConnectionManager, dao: WeatherDAO) -> int:
             failed.append(name)
             continue
         with manager.connection() as conn:
-            city_id = dao.upsert_city(conn, name, latitude, longitude)
-            dao.upsert_daily_weather(conn, city_id, records)
+            city_id = cities.upsert_city(conn, name, latitude, longitude)
+            forecasts.upsert_daily_weather(conn, city_id, records)
             conn.commit()
         print(f"{name}: stored {len(records)} days")
 
@@ -87,22 +96,25 @@ def cmd_fetch(manager: ConnectionManager, dao: WeatherDAO) -> int:
 
 def cmd_report(
     manager: ConnectionManager,
-    dao: WeatherDAO,
+    cities: CityDAO,
+    forecasts: ForecastDAO,
+    reports: ReportDAO,
     city: str | None = None,
     csv_dir: str | None = None,
 ) -> int:
     """Print the three reports, optionally export them as CSV, and return the exit code."""
     with manager.connection() as conn:
-        dao.create_schema(conn)
-        if not dao.has_data(conn):
+        cities.create_schema(conn)
+        forecasts.create_schema(conn)
+        if not forecasts.has_data(conn):
             print("No data found. Run fetch first.", file=sys.stderr)
             return 1
-        if city is not None and not dao.city_exists(conn, city):
+        if city is not None and not cities.city_exists(conn, city):
             print(f"Unknown city: {city}", file=sys.stderr)
             return 1
-        averages = dao.average_max_temp_per_city(conn, city=city)
-        hottest = dao.hottest_day_per_city(conn, city=city)
-        rainy = dao.rainy_days_per_city(conn, city=city)
+        averages = reports.average_max_temp_per_city(conn, city=city)
+        hottest = reports.hottest_day_per_city(conn, city=city)
+        rainy = reports.rainy_days_per_city(conn, city=city)
 
     if csv_dir is not None:
         out = Path(csv_dir)
@@ -135,10 +147,13 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         manager = ConnectionManager()
-        dao = WeatherDAO()
+        cities = CityDAO()
+        forecasts = ForecastDAO()
         if args.command == "fetch":
-            return cmd_fetch(manager, dao)
-        return cmd_report(manager, dao, args.city, args.csv_dir)
+            return cmd_fetch(manager, cities, forecasts)
+        return cmd_report(
+            manager, cities, forecasts, ReportDAO(), args.city, args.csv_dir
+        )
     except (ConfigError, DatabaseConnectionError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

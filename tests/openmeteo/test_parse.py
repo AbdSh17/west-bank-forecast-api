@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from api_to_sqlite.api import parse_daily
+from api_to_sqlite.openmeteo.parse import parse_daily
 
-SAMPLE_PATH = Path(__file__).parent / "data" / "sample_response.json"
+SAMPLE_PATH = Path(__file__).parent.parent / "data" / "sample_response.json"
 
 
 @pytest.fixture

@@ -13,4 +13,6 @@ requires-python = ">=3.10"
 where = ["src"]
 
 [tool.setuptools.package-data]
-api_to_sqlite = ["sql/*/*.sql"]
+"api_to_sqlite.cities" = ["sql/*.sql"]
+"api_to_sqlite.forecasts" = ["sql/*.sql"]
+"api_to_sqlite.reports" = ["sql/*.sql"]

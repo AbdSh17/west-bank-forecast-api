@@ -25,4 +25,4 @@ _notes/
 
 # Test cache and generated exports
 .pytest_cache/
-reports/
+/reports/

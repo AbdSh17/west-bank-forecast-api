@@ -3,7 +3,7 @@
 import pytest
 
 from api_to_sqlite import config
-from api_to_sqlite.connection_manager import ConfigError, ConnectionManager
+from api_to_sqlite.database import ConfigError, ConnectionManager
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,8 @@
 """Fetch daily forecasts from the Open-Meteo API."""
 
 import requests
+from api_to_sqlite.openmeteo.exceptions import FetchError
+
 
 from api_to_sqlite.config import (
     API_URL,
@@ -8,10 +10,6 @@ from api_to_sqlite.config import (
     FORECAST_DAYS,
     TIMEOUT_SECONDS,
 )
-
-
-class FetchError(Exception):
-    """Raised when the forecast cannot be fetched or understood."""
 
 
 def fetch_forecast(latitude: float, longitude: float) -> dict:
@@ -56,22 +54,3 @@ def _http_error_message(response: requests.Response) -> str:
     if reason:
         return f"The API rejected the request: {reason}"
     return f"The API returned HTTP status {response.status_code}"
-
-
-def parse_daily(data: dict) -> list[dict]:
-    """Turn the parallel daily lists into one record per day."""
-    daily = data["daily"]
-    return [
-        {
-            "date": date,
-            "temp_max": temp_max,
-            "temp_min": temp_min,
-            "precipitation": precipitation,
-        }
-        for date, temp_max, temp_min, precipitation in zip(
-            daily["time"],
-            daily["temperature_2m_max"],
-            daily["temperature_2m_min"],
-            daily["precipitation_sum"],
-        )
-    ]
