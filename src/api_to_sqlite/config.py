@@ -21,6 +21,7 @@ MYSQL_PORT = os.environ.get("MYSQL_PORT", "3306")
 MYSQL_USER = os.environ.get("MYSQL_USER")
 MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD")
 MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "weather")
+MYSQL_TEST_DATABASE = os.environ.get("MYSQL_TEST_DATABASE", "weather_test")
 
 MYSQL_POOL_SIZE = os.environ.get("MYSQL_POOL_SIZE", "5")
 
