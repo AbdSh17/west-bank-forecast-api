@@ -12,6 +12,8 @@ from mysql.connector.pooling import MySQLConnectionPool, PooledMySQLConnection
 
 from api_to_sqlite import config
 
+import threading
+
 Connection = PooledMySQLConnection
 
 MAX_POOL_SIZE = 32
@@ -34,7 +36,22 @@ class DatabaseConnectionError(Exception):
 class ConnectionManager:
     """Hands out connections from a fixed-size MySQL connection pool."""
 
-    def __init__(self) -> None:
+    _instance: "ConnectionManager | None" = None
+    _instance_lock = threading.Lock()
+
+    # __new__ creates the object
+    # __init__ fills it in
+    def __new__(cls) -> "ConnectionManager":
+        """Return the one shared manager, creating it on the first call."""
+        if cls._instance is None:
+            with cls._instance_lock:
+                if cls._instance is None:
+                    instance = super().__new__(cls)
+                    instance._initialize()
+                    cls._instance = instance
+        return cls._instance
+
+    def _initialize(self) -> None:
         """Read the MySQL settings from config and check them.
 
         Attributes:
@@ -85,6 +102,7 @@ class ConnectionManager:
         self.user = config.MYSQL_USER
         self.password = config.MYSQL_PASSWORD
         self.database = config.MYSQL_DATABASE
+        self._pool_lock = threading.Lock()
         self._pool: MySQLConnectionPool | None = None
 
     def _create_pool(self) -> MySQLConnectionPool:
@@ -119,7 +137,9 @@ class ConnectionManager:
     def connection(self) -> Iterator[Connection]:
         """Borrow a connection from the pool and always give it back afterwards."""
         if self._pool is None:
-            self._pool = self._create_pool()
+            with self._pool_lock:
+                if self._pool is None:
+                    self._pool = self._create_pool()
         try:
             conn = self._pool.get_connection()
         except mysql.connector.PoolError as error:
@@ -133,3 +153,9 @@ class ConnectionManager:
                 conn.rollback()
             finally:
                 conn.close()
+
+    @classmethod
+    def reset(cls) -> None:
+        """Forget the shared manager. Only for tests."""
+        with cls._instance_lock:
+            cls._instance = None
