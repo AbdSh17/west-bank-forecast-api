@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from api_to_sqlite.database import DatabaseConnectionError
+from api_to_sqlite.cities.exceptions import CityNotFound
 
 PROBLEM_JSON = "application/problem+json"
 RETRY_AFTER_SECONDS = "2"
@@ -46,4 +47,14 @@ def register_error_handlers(app: FastAPI) -> None:
             "Database unavailable",
             "The database is not available right now. Try again shortly.",
             headers={"Retry-After": RETRY_AFTER_SECONDS},
+        )
+
+    @app.exception_handler(CityNotFound)
+    async def city_not_found(request: Request, error: CityNotFound) -> JSONResponse:
+        return problem(
+            request,
+            404,
+            "/problems/city-not-found",
+            "City not found",
+            str(error),
         )

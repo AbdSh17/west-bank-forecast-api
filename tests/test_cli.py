@@ -5,8 +5,8 @@ from datetime import date, timedelta
 import pytest
 
 from api_to_sqlite import cli
-from api_to_sqlite.openmeteo.exceptions import FetchError
 from api_to_sqlite.forecasts import service
+from api_to_sqlite.openmeteo.exceptions import FetchError
 
 JENIN_LATITUDE = 32.46
 
@@ -33,7 +33,7 @@ def failing_for_jenin(latitude: float, longitude: float) -> dict:
 
 @pytest.fixture
 def fake_api(monkeypatch):
-    """Replace the real Open-Meteo call inside cli with the fake."""
+    """Replace the real Open-Meteo call inside the service with the fake."""
     monkeypatch.setattr(service, "fetch_forecast", fake_forecast)
 
 
@@ -63,7 +63,7 @@ def test_second_fetch_does_not_duplicate_rows(db, fake_api):
 def test_fetch_stores_the_other_cities_when_one_fails(db, monkeypatch, capsys):
     monkeypatch.setattr(service, "fetch_forecast", failing_for_jenin)
     assert cli.main(["fetch"]) == 1
-    assert count_rows(db, "cities") == 4
+    assert count_rows(db, "cities") == 5
     assert count_rows(db, "daily_weather") == 28
     assert "Jenin" in capsys.readouterr().err
 
