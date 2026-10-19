@@ -17,6 +17,8 @@ from api_to_sqlite.forecasts.router import router as forecasts_router
 
 from api_to_sqlite.reports.router import router as reports_router
 
+from api_to_sqlite.forecasts.refresh_router import router as refresh_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -34,5 +36,6 @@ app.include_router(health_router)
 app.include_router(cities_router)
 app.include_router(forecasts_router)
 app.include_router(reports_router)
+app.include_router(refresh_router)
 
 register_error_handlers(app)
