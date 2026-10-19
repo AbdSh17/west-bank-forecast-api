@@ -4,6 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends
 
+from api_to_sqlite.api_docs import FILTERED_READ
 from api_to_sqlite.cities.dao import CityDAO
 from api_to_sqlite.database import Connection, get_connection
 from api_to_sqlite.reports import service
@@ -17,7 +18,11 @@ from api_to_sqlite.reports.schemas import (
 router = APIRouter(prefix="/v1/reports", tags=["reports"])
 
 
-@router.get("/average-max")
+@router.get(
+    "/average-max",
+    summary="Average maximum temperature per city",
+    responses=FILTERED_READ,
+)
 def average_max(
     city: str | None = None,
     start_date: date | None = None,
@@ -29,7 +34,7 @@ def average_max(
     return service.average_max(conn, cities, reports, start_date or date.today(), city)
 
 
-@router.get("/hottest-day")
+@router.get("/hottest-day", summary="Hottest day per city", responses=FILTERED_READ)
 def hottest_day(
     city: str | None = None,
     start_date: date | None = None,
@@ -41,7 +46,7 @@ def hottest_day(
     return service.hottest_day(conn, cities, reports, start_date or date.today(), city)
 
 
-@router.get("/rainy-days")
+@router.get("/rainy-days", summary="Days with rain per city", responses=FILTERED_READ)
 def rainy_days(
     city: str | None = None,
     start_date: date | None = None,

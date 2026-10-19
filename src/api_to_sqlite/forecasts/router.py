@@ -4,6 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 
+from api_to_sqlite.api_docs import FILTERED_READ
 from api_to_sqlite.cities.dao import CityDAO
 from api_to_sqlite.database import Connection, get_connection
 from api_to_sqlite.forecasts import service
@@ -14,7 +15,7 @@ from api_to_sqlite.forecasts.schemas import ForecastList
 router = APIRouter(prefix="/v1/forecasts", tags=["forecasts"])
 
 
-@router.get("")
+@router.get("", summary="List daily forecasts", responses=FILTERED_READ)
 def list_forecasts(
     city: str | None = None,
     start_date: date | None = None,

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, Response
 
+from api_to_sqlite.api_docs import DATABASE_UNAVAILABLE
 from api_to_sqlite.cities.dao import CityDAO
 from api_to_sqlite.database import ConnectionManager
 from api_to_sqlite.forecasts import service
@@ -28,7 +29,22 @@ def _status_for(results: list[service.CityResult]) -> int:
     return 207
 
 
-@router.post("", response_model_exclude_none=True)
+@router.post(
+    "",
+    response_model_exclude_none=True,
+    summary="Refresh the forecasts from Open-Meteo",
+    responses={
+        207: {
+            "model": RefreshOut,
+            "description": "Some cities were stored and some failed.",
+        },
+        502: {
+            "model": RefreshOut,
+            "description": "No city could be stored. Open-Meteo failed for all.",
+        },
+        **DATABASE_UNAVAILABLE,
+    },
+)
 def create_refresh(
     response: Response,
     manager: ConnectionManager = Depends(ConnectionManager),
