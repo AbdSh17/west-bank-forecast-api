@@ -87,3 +87,13 @@ def register_error_handlers(app: FastAPI) -> None:
             "Validation error",
             problems,
         )
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, error: Exception) -> JSONResponse:
+        return problem(
+            request,
+            500,
+            "/problems/internal-error",
+            "Internal server error",
+            "Something went wrong on the server.",
+        )
