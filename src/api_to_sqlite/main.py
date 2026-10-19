@@ -9,12 +9,19 @@ from api_to_sqlite.database import ConnectionManager
 from api_to_sqlite.errors import register_error_handlers
 from api_to_sqlite.cities.router import router as cities_router
 
+from api_to_sqlite.cities import service as city_service
+from api_to_sqlite.cities.dao import CityDAO
+from api_to_sqlite.forecasts.dao import ForecastDAO
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Create the pool at startup so a down database stops the server early."""
-    with ConnectionManager().connection():
-        pass
+    """Prepare the database at startup so a down database stops the server early."""
+    cities = CityDAO()
+    with ConnectionManager().connection() as conn:
+        cities.create_schema(conn)
+        ForecastDAO().create_schema(conn)
+        city_service.seed_cities(conn, cities)
     yield
 
 
