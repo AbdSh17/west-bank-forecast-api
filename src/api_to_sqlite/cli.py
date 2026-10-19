@@ -6,17 +6,14 @@ import sys
 from pathlib import Path
 
 from api_to_sqlite.cities.dao import CityDAO
-from api_to_sqlite.config import CITIES
 from api_to_sqlite.database import (
     ConfigError,
     ConnectionManager,
     DatabaseConnectionError,
 )
 from api_to_sqlite.forecasts.dao import ForecastDAO
-from api_to_sqlite.openmeteo.client import fetch_forecast
-from api_to_sqlite.openmeteo.exceptions import FetchError
-from api_to_sqlite.openmeteo.parse import parse_daily
 from api_to_sqlite.reports.dao import ReportDAO
+from api_to_sqlite.forecasts.service import refresh
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,24 +62,15 @@ def cmd_fetch(
     cities: CityDAO,
     forecasts: ForecastDAO,
 ) -> int:
-    """Fetch every city, store the successes and return 1 if any city failed."""
-    with manager.connection() as conn:
-        cities.create_schema(conn)
-        forecasts.create_schema(conn)
+    """Refresh every city, print the results and return 1 if any city failed."""
+    results = refresh(manager, cities, forecasts)
 
-    failed: list[str] = []
-    for name, latitude, longitude in CITIES:
-        try:
-            records = parse_daily(fetch_forecast(latitude, longitude))
-        except FetchError as error:
-            print(f"{name}: failed - {error}", file=sys.stderr)
-            failed.append(name)
-            continue
-        with manager.connection() as conn:
-            city_id = cities.upsert_city(conn, name, latitude, longitude)
-            forecasts.upsert_daily_weather(conn, city_id, records)
-            conn.commit()
-        print(f"{name}: stored {len(records)} days")
+    failed = [result.city for result in results if result.error is not None]
+    for result in results:
+        if result.error is None:
+            print(f"{result.city}: stored {result.days} days")
+        else:
+            print(f"{result.city}: failed - {result.error}", file=sys.stderr)
 
     if failed:
         print(
@@ -90,7 +78,7 @@ def cmd_fetch(
             file=sys.stderr,
         )
         return 1
-    print(f"Fetched and stored {len(CITIES)} cities.")
+    print(f"Fetched and stored {len(results)} cities.")
     return 0
 
 
