@@ -3,6 +3,7 @@
 import datetime
 
 from pydantic import BaseModel
+from typing import Literal
 
 
 class ForecastOut(BaseModel):
@@ -22,3 +23,18 @@ class ForecastList(BaseModel):
     limit: int
     offset: int
     total: int
+
+
+class RefreshResultOut(BaseModel):
+    """The outcome of refreshing one city: stored with a day count, or failed."""
+
+    city: str
+    status: Literal["stored", "failed"]
+    days: int | None = None
+    error: str | None = None
+
+
+class RefreshOut(BaseModel):
+    """The answer of POST /v1/forecast-refreshes."""
+
+    results: list[RefreshResultOut]
