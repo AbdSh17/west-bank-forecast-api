@@ -4,7 +4,8 @@ import pytest
 
 from api_to_sqlite.cities import service
 from api_to_sqlite.cities.dao import CityDAO
-from api_to_sqlite.cities.exceptions import CityNotFound
+from api_to_sqlite.cities.exceptions import CityAlreadyExists, CityNotFound
+from api_to_sqlite.cities.models import NewCity
 from api_to_sqlite.cities.schemas import CityOut
 from api_to_sqlite.config import CITIES
 
@@ -12,7 +13,7 @@ from api_to_sqlite.config import CITIES
 def add_city(db, name: str = "Tulkarm") -> None:
     """Store one city in the test database."""
     with db.connection() as conn:
-        CityDAO().upsert_city(conn, name, 32.31, 35.03)
+        CityDAO().upsert_city(conn, NewCity(name, 32.31, 35.03))
         conn.commit()
 
 
@@ -50,3 +51,26 @@ def test_seed_does_nothing_when_a_city_exists(db):
     with db.connection() as conn:
         service.seed_cities(conn, CityDAO())
         assert CityDAO().count(conn) == 1
+
+
+def test_create_city_stores_it_and_returns_it(db):
+    with db.connection() as conn:
+        created = service.create_city(conn, CityDAO(), NewCity("Tulkarm", 32.31, 35.03))
+    assert created.name == "Tulkarm"
+    with db.connection() as conn:
+        assert service.get_city(conn, CityDAO(), "tulkarm").id == created.id
+
+
+def test_create_city_twice_raises_city_already_exists(db):
+    add_city(db)
+    with db.connection() as conn:
+        with pytest.raises(CityAlreadyExists) as error:
+            service.create_city(conn, CityDAO(), NewCity("Tulkarm", 0, 0))
+    assert error.value.name == "Tulkarm"
+
+
+def test_create_city_with_another_letter_case_is_a_duplicate(db):
+    add_city(db)
+    with db.connection() as conn:
+        with pytest.raises(CityAlreadyExists):
+            service.create_city(conn, CityDAO(), NewCity("TULKARM", 0, 0))

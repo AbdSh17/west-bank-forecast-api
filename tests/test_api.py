@@ -68,3 +68,16 @@ def test_ready_answers_503_when_the_pool_stays_empty(
     with db.connection():
         response = client.get("/health/ready")
     assert_database_unavailable(response)
+
+
+def test_startup_creates_the_tables_and_seeds_the_cities(db):
+    with db.connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DROP TABLE daily_weather")
+        cursor.execute("DROP TABLE cities")
+        conn.commit()
+        cursor.close()
+    with TestClient(app) as client:
+        response = client.get("/v1/cities")
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 5

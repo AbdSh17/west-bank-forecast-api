@@ -2,6 +2,8 @@
 
 from api_to_sqlite.database import Connection
 from api_to_sqlite.sql_loader import _execute, _query
+from dataclasses import asdict
+from api_to_sqlite.cities.models import NewCity
 
 DOMAIN = "cities"
 
@@ -13,21 +15,10 @@ class CityDAO:
         """Create the cities table if it does not exist."""
         _execute(conn, DOMAIN, "create_cities.sql")
 
-    def upsert_city(
-        self,
-        conn: Connection,
-        name: str,
-        latitude: float,
-        longitude: float,
-    ) -> int:
+    def upsert_city(self, conn: Connection, city: NewCity) -> int:
         """Insert or update one city and return its id."""
-        _execute(
-            conn,
-            DOMAIN,
-            "upsert_city.sql",
-            {"name": name, "latitude": latitude, "longitude": longitude},
-        )
-        return _query(conn, DOMAIN, "get_city_id.sql", {"name": name})[0][0]
+        _execute(conn, DOMAIN, "upsert_city.sql", asdict(city))
+        return _query(conn, DOMAIN, "get_city_id.sql", {"name": city.name})[0][0]
 
     def city_exists(self, conn: Connection, city: str) -> bool:
         """Return True if a city with this name (any letter case) is stored."""
@@ -45,3 +36,8 @@ class CityDAO:
     def count(self, conn: Connection) -> int:
         """Return the number of stored cities."""
         return _query(conn, DOMAIN, "count_cities.sql")[0][0]
+
+    def insert(self, conn: Connection, city: NewCity) -> int:
+        """Insert a new city and return its id. A duplicate name raises IntegrityError."""
+        _execute(conn, DOMAIN, "insert_city.sql", asdict(city))
+        return _query(conn, DOMAIN, "get_city_id.sql", {"name": city.name})[0][0]
