@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from api_to_sqlite.cities.dao import CityDAO
-from api_to_sqlite.config import CITIES
+from api_to_sqlite.cities import service as city_service
 from api_to_sqlite.database import ConnectionManager
 from api_to_sqlite.forecasts.dao import ForecastDAO
 from api_to_sqlite.openmeteo.client import fetch_forecast
@@ -29,9 +29,11 @@ def refresh(
     with manager.connection() as conn:
         cities.create_schema(conn)
         forecasts.create_schema(conn)
+        city_service.seed_cities(conn, cities)
+        stored = cities.list_all(conn)
 
     results: list[CityResult] = []
-    for name, latitude, longitude in CITIES:
+    for _, name, latitude, longitude in stored:
         try:
             records = parse_daily(fetch_forecast(latitude, longitude))
         except FetchError as error:
