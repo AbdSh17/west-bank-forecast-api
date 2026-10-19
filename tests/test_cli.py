@@ -8,6 +8,9 @@ from api_to_sqlite import cli
 from api_to_sqlite.forecasts import service
 from api_to_sqlite.openmeteo.exceptions import FetchError
 
+from api_to_sqlite.cities.dao import CityDAO
+from api_to_sqlite.cities.models import NewCity
+
 JENIN_LATITUDE = 32.46
 
 
@@ -104,3 +107,13 @@ def test_report_writes_the_three_csv_files(db, fake_api, tmp_path):
     assert cli.main(["report", "--csv-dir", str(tmp_path)]) == 0
     for name in ("average_max.csv", "hottest_day.csv", "rainy_days.csv"):
         assert (tmp_path / name).exists()
+
+
+def test_fetch_includes_a_city_added_later(db, fake_api):
+    cli.main(["fetch"])
+    with db.connection() as conn:
+        CityDAO().insert(conn, NewCity("Tulkarm", 32.31, 35.03))
+        conn.commit()
+    assert cli.main(["fetch"]) == 0
+    assert count_rows(db, "cities") == 6
+    assert count_rows(db, "daily_weather") == 42
