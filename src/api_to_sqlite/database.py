@@ -144,6 +144,12 @@ class ConnectionManager:
                 raise DatabaseConnectionError(
                     f"No free connection in the pool: {error}"
                 ) from error
+
+            except mysql.connector.Error as error:
+                raise DatabaseConnectionError(
+                    f"Could not get a connection from the pool: {error}"
+                ) from error
+
             try:
                 yield conn
             finally:
@@ -159,3 +165,9 @@ class ConnectionManager:
         """Forget the shared manager. Only for tests."""
         with cls._instance_lock:
             cls._instance = None
+
+
+def get_connection() -> Iterator[Connection]:
+    """Borrow one connection for a single request and give it back afterwards."""
+    with ConnectionManager().connection() as conn:
+        yield conn
