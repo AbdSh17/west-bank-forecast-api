@@ -22,6 +22,7 @@ POOL_NAME = "weather_pool"
 CONNECT_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 1
 CONNECT_TIMEOUT_SECONDS = 5
+POOL_WAIT_SECONDS = 5
 # MySQL client error numbers for "server not reachable". Only 2003 was seen here.
 TRANSIENT_ERRNOS = {2002, 2003, 2013}
 
@@ -94,6 +95,7 @@ class ConnectionManager:
         self.pool_size = settings.mysql_pool_size
         self._pool_lock = threading.Lock()
         self._pool: MySQLConnectionPool | None = None
+        self._slots = threading.BoundedSemaphore(self.pool_size)
 
     def _create_pool(self) -> MySQLConnectionPool:
         """Create the pool, retrying with backoff while the server is unreachable."""
@@ -130,19 +132,27 @@ class ConnectionManager:
             with self._pool_lock:
                 if self._pool is None:
                     self._pool = self._create_pool()
-        try:
-            conn = self._pool.get_connection()
-        except mysql.connector.PoolError as error:
+        if not self._slots.acquire(timeout=POOL_WAIT_SECONDS):
             raise DatabaseConnectionError(
-                f"No free connection in the pool: {error}"
-            ) from error
+                f"No free connection in the pool after waiting "
+                f"{POOL_WAIT_SECONDS} seconds"
+            )
         try:
-            yield conn
-        finally:
             try:
-                conn.rollback()
+                conn = self._pool.get_connection()
+            except mysql.connector.PoolError as error:
+                raise DatabaseConnectionError(
+                    f"No free connection in the pool: {error}"
+                ) from error
+            try:
+                yield conn
             finally:
-                conn.close()
+                try:
+                    conn.rollback()
+                finally:
+                    conn.close()
+        finally:
+            self._slots.release()
 
     @classmethod
     def reset(cls) -> None:
