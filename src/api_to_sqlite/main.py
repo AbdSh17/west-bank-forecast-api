@@ -13,6 +13,8 @@ from api_to_sqlite.cities import service as city_service
 from api_to_sqlite.cities.dao import CityDAO
 from api_to_sqlite.forecasts.dao import ForecastDAO
 
+from api_to_sqlite.forecasts.router import router as forecasts_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -28,4 +30,5 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Weather API", lifespan=lifespan)
 app.include_router(health_router)
 app.include_router(cities_router)
+app.include_router(forecasts_router)
 register_error_handlers(app)
