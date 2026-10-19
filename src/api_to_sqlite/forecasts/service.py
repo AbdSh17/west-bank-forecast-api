@@ -9,6 +9,7 @@ from api_to_sqlite.forecasts.dao import ForecastDAO
 from api_to_sqlite.openmeteo.client import fetch_forecast
 from api_to_sqlite.openmeteo.exceptions import FetchError
 from api_to_sqlite.openmeteo.parse import parse_daily
+from api_to_sqlite.cities.models import NewCity
 
 
 @dataclass
@@ -40,7 +41,7 @@ def refresh(
             results.append(CityResult(name, error=str(error)))
             continue
         with manager.connection() as conn:
-            city_id = cities.upsert_city(conn, name, latitude, longitude)
+            city_id = cities.upsert_city(conn, NewCity(name, latitude, longitude))
             forecasts.upsert_daily_weather(conn, city_id, records)
             conn.commit()
         results.append(CityResult(name, days=len(records)))
