@@ -2,17 +2,19 @@
 
 import pytest
 
-from api_to_sqlite import config
 from api_to_sqlite.database import ConfigError, ConnectionManager
+from api_to_sqlite.settings import get_settings
 
 
 @pytest.fixture(autouse=True)
 def valid_settings(monkeypatch):
     """Give the manager valid settings and start each test with no shared instance."""
-    monkeypatch.setattr(config, "MYSQL_USER", "test_user")
-    monkeypatch.setattr(config, "MYSQL_PASSWORD", "test_password")
+    monkeypatch.setenv("MYSQL_USER", "test_user")
+    monkeypatch.setenv("MYSQL_PASSWORD", "test_password")
+    get_settings.cache_clear()
     ConnectionManager.reset()
     yield
+    get_settings.cache_clear()
     ConnectionManager.reset()
 
 
@@ -27,7 +29,7 @@ def test_reset_gives_a_new_object():
 
 
 def test_failed_setup_leaves_no_instance(monkeypatch):
-    monkeypatch.setattr(config, "MYSQL_PASSWORD", "")
+    monkeypatch.setenv("MYSQL_PASSWORD", "")
     with pytest.raises(ConfigError):
         ConnectionManager()
     assert ConnectionManager._instance is None

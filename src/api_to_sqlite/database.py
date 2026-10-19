@@ -10,13 +10,14 @@ from mysql.connector.pooling import MySQLConnectionPool, PooledMySQLConnection
 # MySQLConnectionPool: The pool manager that holds the connections
 # PooledMySQLConnection: One borrowed connection
 
-from api_to_sqlite import config
+from pydantic import ValidationError
+
+from api_to_sqlite.settings import get_settings
 
 import threading
 
 Connection = PooledMySQLConnection
 
-MAX_POOL_SIZE = 32
 POOL_NAME = "weather_pool"
 CONNECT_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 1
@@ -52,7 +53,7 @@ class ConnectionManager:
         return cls._instance
 
     def _initialize(self) -> None:
-        """Read the MySQL settings from config and check them.
+        """Read the MySQL settings and check them.
 
         Attributes:
 
@@ -66,42 +67,31 @@ class ConnectionManager:
 
         """
 
-        missing = [
-            name
-            for name, value in (
-                ("MYSQL_USER", config.MYSQL_USER),
-                ("MYSQL_PASSWORD", config.MYSQL_PASSWORD),
+        try:
+            settings = get_settings()
+        except ValidationError as error:
+            problems = "; ".join(
+                f"{str(item['loc'][0]).upper()}: {item['msg']}"
+                for item in error.errors()
             )
-            if not value
-        ]
-        if missing:
             raise ConfigError(
-                f"Missing settings: {', '.join(missing)}. "
+                f"Invalid settings: {problems}. "
+                "Copy .env.example to .env and fill them in."
+            ) from error
+
+        password = settings.mysql_password.get_secret_value()
+        if not password:
+            raise ConfigError(
+                "Missing settings: MYSQL_PASSWORD. "
                 "Copy .env.example to .env and fill them in."
             )
-        try:
-            self.port = int(config.MYSQL_PORT)
-        except ValueError as error:
-            raise ConfigError(
-                f"MYSQL_PORT must be a number, got {config.MYSQL_PORT!r}"
-            ) from error
 
-        try:
-            self.pool_size = int(config.MYSQL_POOL_SIZE)
-        except ValueError as error:
-            raise ConfigError(
-                f"MYSQL_POOL_SIZE must be a number, got {config.MYSQL_POOL_SIZE!r}"
-            ) from error
-        if not 1 <= self.pool_size <= MAX_POOL_SIZE:
-            raise ConfigError(
-                f"MYSQL_POOL_SIZE must be between 1 and {MAX_POOL_SIZE}, "
-                f"got {self.pool_size}"
-            )
-
-        self.host = config.MYSQL_HOST
-        self.user = config.MYSQL_USER
-        self.password = config.MYSQL_PASSWORD
-        self.database = config.MYSQL_DATABASE
+        self.host = settings.mysql_host
+        self.port = settings.mysql_port
+        self.user = settings.mysql_user
+        self.password = password
+        self.database = settings.mysql_database
+        self.pool_size = settings.mysql_pool_size
         self._pool_lock = threading.Lock()
         self._pool: MySQLConnectionPool | None = None
 
