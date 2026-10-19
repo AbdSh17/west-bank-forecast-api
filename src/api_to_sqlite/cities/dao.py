@@ -32,3 +32,16 @@ class CityDAO:
     def city_exists(self, conn: Connection, city: str) -> bool:
         """Return True if a city with this name (any letter case) is stored."""
         return len(_query(conn, DOMAIN, "city_exists.sql", {"city": city})) > 0
+
+    def list_all(self, conn: Connection) -> list[tuple[int, str, float, float]]:
+        """Return every city as (id, name, latitude, longitude), in insertion order."""
+        return _query(conn, DOMAIN, "list_cities.sql")
+
+    def get(self, conn: Connection, city: str) -> tuple[int, str, float, float] | None:
+        """Return one city by name in any letter case, or None if it is unknown."""
+        rows = _query(conn, DOMAIN, "get_city.sql", {"city": city})
+        return rows[0] if rows else None
+
+    def count(self, conn: Connection) -> int:
+        """Return the number of stored cities."""
+        return _query(conn, DOMAIN, "count_cities.sql")[0][0]

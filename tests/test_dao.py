@@ -54,3 +54,28 @@ def test_rainy_days_counts_only_precipitation_above_zero(db):
         conn.commit()
         rows = ReportDAO().rainy_days_per_city(conn, since="2026-10-01")
     assert rows == [("Tulkarm", 1)]
+
+
+def test_list_all_returns_cities_in_insertion_order(db):
+    cities = CityDAO()
+    with db.connection() as conn:
+        cities.upsert_city(conn, "Tulkarm", 32.31, 35.03)
+        cities.upsert_city(conn, "Qalqilya", 32.19, 34.97)
+        conn.commit()
+        rows = cities.list_all(conn)
+    assert [row[1] for row in rows] == ["Tulkarm", "Qalqilya"]
+
+
+def test_get_ignores_letter_case(db):
+    cities = CityDAO()
+    with db.connection() as conn:
+        cities.upsert_city(conn, "Tulkarm", 32.31, 35.03)
+        conn.commit()
+        row = cities.get(conn, "TULKARM")
+    assert row is not None
+    assert row[1:] == ("Tulkarm", 32.31, 35.03)
+
+
+def test_get_returns_none_for_an_unknown_city(db):
+    with db.connection() as conn:
+        assert CityDAO().get(conn, "nowhere") is None
