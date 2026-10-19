@@ -2,6 +2,8 @@
 
 from api_to_sqlite.database import Connection
 from api_to_sqlite.sql_loader import _execute, _execute_many, _query
+from dataclasses import asdict
+from api_to_sqlite.forecasts.models import ForecastFilter, Page
 
 DOMAIN = "forecasts"
 
@@ -27,3 +29,15 @@ class ForecastDAO:
             "upsert_daily_weather.sql",
             [{**record, "city_id": city_id} for record in records],
         )
+
+    def list_forecasts(
+        self, conn: Connection, filters: ForecastFilter, page: Page
+    ) -> list[tuple]:
+        """Return one page of (city, date, temp_max, temp_min, precipitation) rows."""
+        return _query(
+            conn, DOMAIN, "list_forecasts.sql", {**asdict(filters), **asdict(page)}
+        )
+
+    def count_forecasts(self, conn: Connection, filters: ForecastFilter) -> int:
+        """Return how many rows match the filters, ignoring paging."""
+        return _query(conn, DOMAIN, "count_forecasts.sql", asdict(filters))[0][0]

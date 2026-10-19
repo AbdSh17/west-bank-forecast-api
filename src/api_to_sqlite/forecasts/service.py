@@ -10,6 +10,9 @@ from api_to_sqlite.openmeteo.client import fetch_forecast
 from api_to_sqlite.openmeteo.exceptions import FetchError
 from api_to_sqlite.openmeteo.parse import parse_daily
 from api_to_sqlite.cities.models import NewCity
+from api_to_sqlite.cities.exceptions import CityNotFound
+from api_to_sqlite.forecasts.models import ForecastFilter, Page
+from api_to_sqlite.forecasts.schemas import ForecastList, ForecastOut
 
 
 @dataclass
@@ -46,3 +49,31 @@ def refresh(
             conn.commit()
         results.append(CityResult(name, days=len(records)))
     return results
+
+
+def list_forecasts(
+    conn: Connection,
+    cities: CityDAO,
+    forecasts: ForecastDAO,
+    filters: ForecastFilter,
+    page: Page,
+) -> ForecastList:
+    """Return one page of forecasts. Raise CityNotFound for an unknown city filter."""
+    if filters.city is not None and not cities.city_exists(conn, filters.city):
+        raise CityNotFound(filters.city)
+    rows = forecasts.list_forecasts(conn, filters, page)
+    return ForecastList(
+        items=[
+            ForecastOut(
+                city=city,
+                date=day,
+                temp_max_c=temp_max,
+                temp_min_c=temp_min,
+                precipitation_mm=precipitation,
+            )
+            for city, day, temp_max, temp_min, precipitation in rows
+        ],
+        limit=page.limit,
+        offset=page.offset,
+        total=forecasts.count_forecasts(conn, filters),
+    )
